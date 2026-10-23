@@ -15,6 +15,8 @@ import type { StayInterval, StayQuote } from "@/domain/quote";
  */
 export interface AccommodationProvider {
   readonly info: ProviderInfo;
+  /** Request-size limits of the upstream API; the pipeline splits larger requests to respect them. */
+  readonly limits?: ProviderLimits;
 
   /** Properties in the city that match the filters and can host `adults` guests. */
   searchProperties(criteria: PropertySearchCriteria, options?: ProviderCallOptions): Promise<Property[]>;
@@ -34,6 +36,17 @@ export interface ProviderInfo {
   readonly name: string;
   /** True for simulated data; surfaced in every search result. */
   readonly isDemo: boolean;
+}
+
+/**
+ * Availability APIs typically cap how much one request may ask for and how
+ * many requests may run at once. Adapters declare their numbers here instead
+ * of each implementing its own chunking.
+ */
+export interface ProviderLimits {
+  readonly maxPropertiesPerRequest: number;
+  readonly maxStaysPerRequest: number;
+  readonly maxConcurrentRequests: number;
 }
 
 export interface PropertySearchCriteria {

@@ -2,19 +2,12 @@ import { describe, expect, it } from "vitest";
 import { fromMajorUnits } from "@/domain/money";
 import { validateSearchQuery } from "@/services/search-query";
 import { makeQuery } from "@/test/builders";
-import { queryToSearchParams, searchHref, searchKey, searchParamsToInput, type RawSearchParams } from "./search-params";
+import { queryToSearchParams, rawSearchParams, searchHref, searchKey, searchParamsToInput } from "./search-params";
 
 const NOW = new Date("2026-10-24T09:00:00Z");
 
 /** What Next.js hands a page for a given query string. */
-function parse(search: string): RawSearchParams {
-  const params: RawSearchParams = {};
-  for (const [key, value] of new URLSearchParams(search)) {
-    const existing = params[key];
-    params[key] = existing === undefined ? value : [...(Array.isArray(existing) ? existing : [existing]), value];
-  }
-  return params;
-}
+const parse = (search: string) => rawSearchParams(new URLSearchParams(search));
 
 describe("search params", () => {
   it("round-trips a query through the URL", () => {
@@ -45,6 +38,10 @@ describe("search params", () => {
   it("builds links for a modified search", () => {
     const href = searchHref(makeQuery({ budget: fromMajorUnits(2000, "TRY") }), { budget: null, maxSwitches: 1 });
     expect(href).toBe("/search?city=istanbul&checkIn=2027-01-20&checkOut=2027-01-23&adults=2&switches=1");
+  });
+
+  it("keeps repeated keys, as checkbox groups submit them", () => {
+    expect(parse("types=hotel&types=hostel&city=rome")).toEqual({ types: ["hotel", "hostel"], city: "rome" });
   });
 
   it("identifies a search regardless of parameter order", () => {

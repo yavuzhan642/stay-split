@@ -19,6 +19,16 @@ export const SEARCH_PARAM = {
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;
 
+/** URLSearchParams → the shape Next.js passes to pages: repeated keys become arrays. */
+export function rawSearchParams(params: URLSearchParams): RawSearchParams {
+  const raw: RawSearchParams = {};
+  for (const [key, value] of params) {
+    const existing = raw[key];
+    raw[key] = existing === undefined ? value : [...(Array.isArray(existing) ? existing : [existing]), value];
+  }
+  return raw;
+}
+
 /** Raw URL params → untrusted input for `validateSearchQuery`. */
 export function searchParamsToInput(params: RawSearchParams): SearchQueryInput {
   const first = (key: string) => {

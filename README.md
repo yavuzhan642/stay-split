@@ -20,7 +20,7 @@ Bölünmüş:   Otel B  20–21 Ocak  900 TL
 | 1 | Mimari, kurulum, TypeScript veri modelleri | ✅ |
 | 2 | Optimizasyon motoru, mock veri, testler, terminal demosu | ✅ |
 | 3 | Arama arayüzü: form, sonuçlar, zaman çizelgesi, mobil uyum | ✅ |
-| 4 | API/entegrasyon hazırlığı | ⏳ |
+| 4 | Entegrasyon hazırlığı: dayanıklı sağlayıcı katmanı, JSON API, yapılandırma, hata yönetimi | ✅ |
 
 ## Kurulum
 
@@ -40,8 +40,39 @@ Uygulamayı başlatıp http://localhost:3000 adresini açın:
 npm run dev
 ```
 
-`.env.local` içinde `MOCK_PROVIDER_LATENCY_MS=400` gibi bir değer, gerçek bir API'nin gecikmesini taklit eder;
-yükleme durumlarını görmek için kullanışlıdır.
+### Ortam değişkenleri
+
+Tümü isteğe bağlıdır; varsayılanlarla çalışır. Hatalı bir değer, uygulama açılırken hangi değişkenin neden
+yanlış olduğunu söyleyerek durur.
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `ACCOMMODATION_PROVIDER` | `mock` | Veri kaynağı. Şimdilik yalnızca simüle `mock` var |
+| `MOCK_PROVIDER_LATENCY_MS` | `0` | Mock sağlayıcıya yapay gecikme; `400` gibi bir değer yükleme durumlarını görünür kılar |
+| `PROVIDER_TIMEOUT_MS` | `8000` | Tek bir sağlayıcı çağrısının süre sınırı |
+| `PROVIDER_MAX_RETRIES` | `2` | Geçici hatalardan sonraki ek deneme sayısı |
+| `QUOTE_CACHE_TTL_SECONDS` | `120` | Fiyatların yeniden kullanılabileceği süre; `0` önbelleği kapatır |
+
+## API
+
+Web sayfasındaki aramanın JSON hâli `GET /api/search` adresinde; parametreler sayfa URL'iyle aynı:
+
+```bash
+curl "http://localhost:3000/api/search?city=istanbul&checkIn=2027-01-20&checkOut=2027-01-23&adults=2"
+```
+
+Yanıt biçimi, hata kodları ve alanlar için [docs/API.md](docs/API.md) dosyasına bakın.
+
+## Yayına alma
+
+Uygulama standart bir Next.js projesi, ek altyapı gerektirmiyor. En kolay yol Vercel:
+
+1. https://vercel.com adresinde GitHub hesabınla giriş yap.
+2. **Add New → Project** ile `stay-split` deposunu içe aktar. Ayarlar otomatik algılanır.
+3. **Deploy**'a bas. Sonrasında `main`'e yapılan her push otomatik olarak yayına çıkar.
+
+Ortam değişkenleri, Vercel'de proje ayarlarındaki **Environment Variables** bölümünden eklenir. Kendi
+sunucunda çalıştırmak için `npm run build` ve ardından `npm start` yeterli.
 
 ## Komutlar
 
@@ -77,14 +108,15 @@ Seçenekler: `--city` (istanbul | cairo | rome), `--in`/`--out` (YYYY-MM-DD), `-
 src/
   domain/      Tipler ve değer nesneleri: Money, IsoDate, Property, StayQuote, SearchQuery, StayPlan
   engine/      Saf optimizasyon motoru: teklif tablosu, DP optimizer, öneri kuralları, plan doğrulama
-  providers/   AccommodationProvider arayüzü, registry ve mock (simüle) sağlayıcı
-  services/    searchStays (arama akışı) ve validateSearchQuery (girdi doğrulama)
-  app/         Next.js App Router: / (ana sayfa) ve /search (sonuçlar)
+  providers/   AccommodationProvider arayüzü, registry, dayanıklılık katmanı ve mock (simüle) sağlayıcı
+  services/    searchStays (arama akışı), validateSearchQuery (girdi doğrulama), HTTP API işleyicisi
+  config/      Ortam değişkenlerinin okunması ve doğrulanması (yalnızca sunucu)
+  app/         Next.js App Router: / (ana sayfa), /search (sonuçlar), /api/search (JSON)
   components/  Arama formu, sonuç kartları, zaman çizelgesi; ui/ altında shadcn/ui
   lib/         Türkçe biçimlendirme, arayüz metinleri, URL ↔ arama dönüşümü
   test/        Test yardımcıları
 scripts/       Terminal demosu
-docs/          Mimari ve algoritma belgesi
+docs/          Mimari ve algoritma belgesi, API sözleşmesi
 ```
 
 Mimarinin, algoritmanın matematiğinin ve test stratejisinin ayrıntıları için

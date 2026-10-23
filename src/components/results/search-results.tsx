@@ -5,7 +5,7 @@ import { nightsBetween } from "@/domain/dates";
 import type { SearchQuery } from "@/domain/search";
 import { formatCount, formatDateRange, formatMoney, formatNights } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS } from "@/lib/messages";
-import { createAccommodationProvider } from "@/providers/registry";
+import { getAccommodationProvider } from "@/providers/registry";
 import { searchStays } from "@/services/search-stays";
 import { AlternativesList } from "./alternatives-list";
 import { EmptyState } from "./empty-state";
@@ -17,7 +17,7 @@ import { RecommendationCard } from "./recommendation-card";
  * never reaches the browser; only the finished plans are sent down.
  */
 export async function SearchResults({ query }: { query: SearchQuery }) {
-  const result = await searchStays(query, { provider: createAccommodationProvider() });
+  const result = await searchStays(query, { provider: getAccommodationProvider() });
   const city = findCity(query.cityId);
   const nights = nightsBetween(query.checkIn, query.checkOut);
 

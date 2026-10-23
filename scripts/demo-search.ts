@@ -14,7 +14,7 @@ import { addDays, todayInTimeZone, type IsoDate } from "@/domain/dates";
 import { formatMoney } from "@/domain/money";
 import type { SearchResult, StayPlan } from "@/domain/search";
 import { EMPTY_STATE_COPY, recommendationCopy } from "@/lib/messages";
-import { createAccommodationProvider } from "@/providers/registry";
+import { getAccommodationProvider } from "@/providers/registry";
 import { validateSearchQuery } from "@/services/search-query";
 import { searchStays } from "@/services/search-stays";
 
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = await searchStays(validation.query, { provider: createAccommodationProvider() });
+  const result = await searchStays(validation.query, { provider: getAccommodationProvider() });
   print(result);
 }
 

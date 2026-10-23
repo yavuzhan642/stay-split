@@ -21,8 +21,9 @@ flowchart LR
 | --- | --- | --- |
 | `src/domain` | `Money`, `IsoDate`, `Property`, `StayQuote`, `SearchQuery`, `StayPlan`, şehir kataloğu | yalnızca date-fns |
 | `src/engine` | Teklif tablosu, optimizasyon (DP), öneri kuralları, plan doğrulama | domain |
-| `src/providers` | Sağlayıcı arayüzü, registry, mock sağlayıcı ve demo verisi | domain |
-| `src/services` | Arama akışı (orkestrasyon) ve girdi doğrulama | hepsi |
+| `src/providers` | Sağlayıcı arayüzü, registry, dayanıklılık katmanı (`resilience/`), mock sağlayıcı ve demo verisi | domain, config |
+| `src/services` | Arama akışı (orkestrasyon), girdi doğrulama ve HTTP API işleyicisi | hepsi |
+| `src/config` | Ortam değişkenlerinin tek noktadan okunup doğrulanması (yalnızca sunucu) | — |
 | `src/app` | Next.js sayfaları: `/` (ana sayfa) ve `/search` (sonuçlar) | services, components |
 | `src/components` | Arayüz bileşenleri: arama formu, sonuç kartları, zaman çizelgesi; `ui/` altında shadcn/ui | lib, domain |
 | `src/lib` | Arayüz yardımcıları: Türkçe biçimlendirme, metinler, URL ↔ arama dönüşümü | domain |
@@ -167,23 +168,70 @@ olarak döner (`withinBudget: false`). Böylece "bütçeni aşan 4.500 TL'lik ot
 - `bookingUrl` her zaman `null`, `info.isDemo` her zaman `true`. Arayüz bunu her fiyatın yanında belirtmek
   zorundadır.
 
-## 7. Gerçek sağlayıcı eklemek
+## 7. Sağlayıcı entegrasyonu
 
-1. `src/providers/<ad>/` altında `AccommodationProvider`'ı uygulayan bir sınıf yazın.
+### Dayanıklılık katmanı
+
+Gerçek konaklama API'leri yavaştır, bazen hata verir, istek başına sınır koyar ve kota uygular. Bu sorunlar
+her sağlayıcıda aynıdır. Bu yüzden her adaptörde ayrı ayrı çözülmez; adaptörün etrafına sarılan katmanlarla
+bir kez çözülür (decorator deseni). Her katman `AccommodationProvider` arayüzünü kendisi uygular. Bu sayede
+katmanlar üst üste dizilebilir ve arama servisi onların varlığından habersiz kalır.
+
+```
+istek → önbellek → bölme (batching) → yeniden deneme → zaman aşımı → adaptör → API
+```
+
+| Katman | Ne yapar | Neden bu sırada |
+| --- | --- | --- |
+| `withQuoteCache` | (tesis, aralık, kişi, para birimi) başına cevabı TTL süresince saklar; "müsait değil" cevabını da saklar | En dışta: önbellekteyse hiçbir ağ işi yapılmaz |
+| `withBatching` | Sağlayıcının `limits` sınırını aşan isteği parçalara böler, eşzamanlılığı sınırlar; bir parça düşerse diğerlerini iptal eder | Parçalar ayrı ayrı yeniden denenebilsin |
+| `withRetry` | Yalnızca `retryable` hatalarda, üstel bekleme + rastgele sapma (full jitter) ile tekrar dener | Her denemeye zaman aşımı katmanı yeni bir süre verir |
+| `withTimeout` | Her çağrıya süre sınırı koyar; süre dolunca isteği iptal eder | En içte: adaptörün tek bir denemesini sınırlar |
+
+Ayrıntılar:
+
+- **Neden jitter?** Bir kesinti anında binlerce istemci aynı anda düşer. Hepsi aynı aralıklarla tekrar
+  denerse, toparlanmaya çalışan API'yi yeniden çökertirler. Rastgele bekleme, denemeleri zamana yayar.
+- **Önbellek anahtarı istek değil, (tesis, aralık) çiftidir.** Kullanıcı aynı aramayı bütçe ya da transfer
+  ayarını değiştirerek tekrarladığında hiçbir yeni istek gitmez. Canlı ölçümde aynı arama ilk seferde 820 ms,
+  ikincisinde 3 ms sürdü. Önbellekten dönen tekliflerin `retrievedAt` değeri korunur, yani fiyatın yaşı
+  dürüst kalır.
+- **Kısmi sonuç yok.** Bir parça tüm denemelere rağmen düşerse arama da düşer. Eksik bir fiyat listesiyle
+  "en ucuz" demek yanıltıcı olurdu.
+- **Yapılandırma:** `src/config/server-config.ts` ortam değişkenlerini bir kez okur ve doğrular. Hatalı bir
+  değer, uygulamanın açılışında hangi değişkenin neden yanlış olduğunu söyleyerek durur.
+- **Sunucu sınırı:** `registry.ts` ve `server-config.ts` dosyaları `import "server-only"` içerir. Bu
+  dosyaları tarayıcı koduna dahil etmeye çalışmak derlemeyi bozar. API anahtarlarının sızamamasını derleyici
+  garanti eder, geliştiricinin dikkatine kalmaz.
+
+### Gerçek sağlayıcı eklemek
+
+1. `src/providers/<ad>/` altında `AccommodationProvider`'ı uygulayan bir adaptör yazın. API'nin istek
+   sınırlarını `limits` alanında bildirin; bölme işini pipeline yapar.
 2. Sağlayıcının yanıtını domain tiplerine çevirin. Rezerve edilemeyen aralıklar için teklif döndürmeyin.
    `total` o aralığın gerçek toplam fiyatı olmalı.
-3. Hataları `ProviderError` ile sarın (`retryable` ile zaman aşımı ve rate limit'i ayırın). `AbortSignal`'ı
-   iletin.
-4. `src/providers/registry.ts`'e bir `case` ekleyin. Anahtarları yalnızca ortam değişkenlerinden okuyun.
-5. `searchStays` ve motor değişmez.
+3. Hataları `ProviderError` ile sarın. Zaman aşımı, 429 ve 5xx hataları `retryable: true`, geçersiz anahtar ya
+   da hatalı istek `retryable: false` olmalı. `AbortSignal`'ı HTTP isteğine iletin.
+4. `PROVIDER_IDS` listesine adını, `registry.ts` içindeki `createAdapter` fonksiyonuna bir `case` ekleyin.
+   Kimlik bilgilerini `loadServerConfig` üzerinden ortam değişkenlerinden okuyun.
+5. Zaman aşımı, yeniden deneme, bölme ve önbellek otomatik olarak uygulanır. `searchStays`, motor ve
+   arayüz değişmez.
 
 Kurallar: uydurma API anahtarı yok, izinsiz scraping yok, sağlayıcı verisini gerçekmiş gibi gösterme yok,
 çalışmayan rezervasyon bağlantısı yok.
 
+### HTTP API
+
+`GET /api/search`, sayfanın yaptığı aramayı JSON olarak sunar. Sözleşme [API.md](API.md) dosyasında.
+İşleyici (`src/services/search-http.ts`), route dosyasından ayrı ve `(Request, bağımlılıklar) → Response`
+biçiminde düz bir fonksiyon. Bu sayede sunucu başlatmadan test edilir. Durum kodları istemciye ne yapacağını
+söyler: 400 girdiyi düzelt, 503 sonra tekrar dene (`Retry-After` ile), 502 ve 500 senin hatan değil. İç hata
+ayrıntıları yanıta hiç girmez; tek satır JSON olarak loglanır.
+
 ## 8. Test stratejisi
 
 ```
-npm test          # 79 test, ~1 sn
+npm test          # 108 test, ~2 sn
 ```
 
 | Gereksinim | Test |
@@ -197,6 +245,8 @@ npm test          # 79 test, ~1 sn
 | Transfer tasarrufu siliyor | *drops the split when the transfer cost cancels the saving* |
 | Boşluk/çakışma yok | *never produces gaps or overlaps between stays* (3 şehir × 4 tarih × transfer açık/kapalı) |
 | Toplam teklif fiyatı | `mock-provider.test.ts` → *prices a stay as a whole, not as a sum of nights* |
+| Zaman aşımı, yeniden deneme, bölme, önbellek | `resilience.test.ts` (sahte zamanlayıcılar ve dengesiz sahte sağlayıcılarla); katmanların arama sonucunu değiştirmediği de test ediliyor |
+| HTTP API | `search-http.test.ts` → 200, 400, 503 + `Retry-After`, 502, 500 (iç ayrıntı sızmadan) |
 
 **Diferansiyel test:** `optimizer.test.ts` 400 rastgele küçük örnekte DP'nin çıktısını, tüm planları tek tek
 deneyen kaba kuvvet algoritmasıyla birebir karşılaştırır: sıralama, değişiklik sayısına göre listeler ve plan
@@ -246,9 +296,13 @@ için `error.tsx`.
 - **K ≤ 1.** Motor her K'yi destekler. Sınır, istek sayısı ve arayüz sadeliği için konuldu.
 - **Farklı türleri kıyaslama.** "En iyi tek otel" tür filtresi yoksa hostel ile oteli karşılaştırabilir. İleride
   tasarrufu benzer kalite/tür içinde ölçmek düşünülmeli.
-- **Ölçek.** P büyüdüğünde (yüzlerce tesis) P² terimi için aday ön eleme (fiyat/puan ile ilk M tesis) ve
-  teklif önbelleği (kısa TTL) eklenmeli.
-- **Sunucu sınırı.** Gerçek sağlayıcı anahtarlarla geldiğinde sağlayıcı modülleri `server-only` ile korunmalı.
+- **Ölçek.** P büyüdüğünde (yüzlerce tesis), P² terimi için aday ön eleme gerekir: fiyat ya da puanla ilk M
+  tesis seçilmeli.
+- **Önbellek süreç içi.** Sunucusuz barındırmada her örneğin kendi önbelleği olur. Kullanıcı sayısı büyüyünce
+  paylaşılan bir depoya (Redis veya `'use cache: remote'`) geçilmeli. Aynı anda gelen iki özdeş istek şu an
+  ikisi de sağlayıcıya gider; bunları tek istekte birleştirmek (in-flight dedupe) sonraki adım.
+- **Hız sınırı yok.** `/api/search` herkese açık. Gerçek bir sağlayıcının kotası devreye girmeden önce IP ya
+  da anahtar bazlı hız sınırlaması (rate limiting) eklenmeli.
 - **Fiyat tazeliği.** `retrievedAt` saklanıyor. Rezervasyona yönlendirmeden önce fiyat yeniden doğrulanmalı.
 
 ## 11. Yol haritası
@@ -258,4 +312,5 @@ için `error.tsx`.
 | 1 — Foundation | Mimari, klasörler, kurulum, tipler | ✅ |
 | 2 — Optimization Engine | Mock veri, müsaitlik, fiyat, DP, testler, demo | ✅ |
 | 3 — Frontend | Arama formu, sonuçlar, zaman çizelgesi, responsive, loading/boş durumlar | ✅ |
-| 4 — Integration Readiness | Route handler/API, hata yönetimi, `server-only`, önbellek, dokümantasyon | ⏳ |
+| 4 — Integration Readiness | Dayanıklılık katmanı, yapılandırma, `server-only`, JSON API, hata yönetimi, dokümantasyon | ✅ |
+| Sonrası | Yayına alma, gerçek sağlayıcı/affiliate, hız sınırı, paylaşılan önbellek, analitik | — |
