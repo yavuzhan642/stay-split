@@ -23,7 +23,9 @@ flowchart LR
 | `src/engine` | Teklif tablosu, optimizasyon (DP), öneri kuralları, plan doğrulama | domain |
 | `src/providers` | Sağlayıcı arayüzü, registry, mock sağlayıcı ve demo verisi | domain |
 | `src/services` | Arama akışı (orkestrasyon) ve girdi doğrulama | hepsi |
-| `src/app` | Next.js sayfaları (Faz 3) | services |
+| `src/app` | Next.js sayfaları: `/` (ana sayfa) ve `/search` (sonuçlar) | services, components |
+| `src/components` | Arayüz bileşenleri: arama formu, sonuç kartları, zaman çizelgesi; `ui/` altında shadcn/ui | lib, domain |
+| `src/lib` | Arayüz yardımcıları: Türkçe biçimlendirme, metinler, URL ↔ arama dönüşümü | domain |
 | `src/test` | Test yardımcıları (`makeQuote`, `InMemoryProvider`) | — |
 | `scripts` | `npm run demo` terminal demosu | services |
 
@@ -181,7 +183,7 @@ Kurallar: uydurma API anahtarı yok, izinsiz scraping yok, sağlayıcı verisini
 ## 8. Test stratejisi
 
 ```
-npm test          # 72 test, ~1 sn
+npm test          # 79 test, ~1 sn
 ```
 
 | Gereksinim | Test |
@@ -202,7 +204,43 @@ sayısı. Fiyatlar bilerek dar bir aralıktan seçilir ki eşitlikler sık olsun
 sınansın. Optimize edilmiş bir algoritmayı, yavaş ama açıkça doğru bir referansla sınamak üretimde en güvenilir
 alışkanlıklardan biridir.
 
-## 9. Bilinen sınırlamalar ve sonraki adımlar
+## 9. Arayüz (Next.js)
+
+**Arama URL'de yaşar.** Form, `next/form` ile `/search?city=…&checkIn=…` adresine giden bir GET formudur.
+Böylece sonuç sayfası paylaşılabilir, yer imine eklenebilir, yenilenebilir ve geri tuşu çalışır. JavaScript
+yüklenmemişse bile form çalışır (progressive enhancement). JS varsa sayfa yenilenmeden istemci tarafında
+gezinir. URL parametre adları `src/lib/search-params.ts` içinde tek yerde tanımlıdır ve testler, URL → sorgu
+→ URL gidiş-dönüşünün kayıpsız olduğunu doğrular.
+
+**Hesaplama sunucuda yapılır.** `/search` bir Server Component'tir. Sağlayıcıyı çağırır, motoru çalıştırır ve
+tarayıcıya yalnızca hazır planları gönderir. Gerçek sağlayıcı geldiğinde API anahtarları bu yüzden hiçbir
+zaman tarayıcıya ulaşmaz.
+
+**Cache Components ve akış.** Next 16'da `cacheComponents` açık. Bu ayarla:
+
+- `/` tamamen statik olarak derlenir (`○`).
+- `/search` **Partial Prerender** edilir (`◐`). Başlık ve iskelet (skeleton) derleme anında hazırlanır, URL'e
+  bağlı kısım ise istek anında `Suspense` ile akar. Her yeni arama için `Suspense` `key` ile yeniden
+  oluşturulur, böylece arama sürerken iskelet görünür.
+- Render sırasında `new Date()` kullanılamaz, çünkü derleme anına "donar". "Bugün" ihtiyacı iki yerde
+  çözüldü. Sunucuda doğrulama `await connection()` sonrasında, yani istek anında çalışır. Formda varsayılan
+  tarihler `useSyncExternalStore` ile yalnızca tarayıcıda hesaplanır (sunucuda `null` döner, hydration
+  uyuşmazlığı olmaz).
+
+**Etkileşim tarayıcıda kalır.** Alternatiflerin sıralanması bir Client Component'te yapılır. Planlar zaten
+sayfada olduğu için sıralamak yeni bir sağlayıcı isteği gerektirmez. Fiyat dökümü ve plan ayrıntıları yerel
+`<details>` ile açılır ve JavaScript gerektirmez.
+
+**Görsel dil.** Segment i her yerde i. rengi taşır (`stay-colors.ts`). Zaman çizelgesindeki çubuk ile altındaki
+konaklama kartı bu sayede eşleşir. Çubuklar CSS grid sütunlarına tarihlerden hesaplanarak yerleştirilir;
+boşluk ya da çakışma olsaydı göze batardı. Demo verisi her sonuç sayfasında ve kartlarda açıkça belirtilir,
+rezervasyon bağlantısı yerine "Rezervasyon bağlantısı yok (demo)" yazar.
+
+**Durumlar.** Yükleme (iskelet ve butonda `useFormStatus`), alan bazlı doğrulama hataları, üç boş durum
+(tesis yok, müsaitlik yok, bütçe aşımı; her biri tek tıkla deneme bağlantılarıyla) ve sağlayıcı hataları
+için `error.tsx`.
+
+## 10. Bilinen sınırlamalar ve sonraki adımlar
 
 - **Yalnızca TRY.** Çoklu para birimi için kur servisi ve para birimi seçici gerekir.
 - **K ≤ 1.** Motor her K'yi destekler. Sınır, istek sayısı ve arayüz sadeliği için konuldu.
@@ -213,11 +251,11 @@ alışkanlıklardan biridir.
 - **Sunucu sınırı.** Gerçek sağlayıcı anahtarlarla geldiğinde sağlayıcı modülleri `server-only` ile korunmalı.
 - **Fiyat tazeliği.** `retrievedAt` saklanıyor. Rezervasyona yönlendirmeden önce fiyat yeniden doğrulanmalı.
 
-## 10. Yol haritası
+## 11. Yol haritası
 
 | Faz | Kapsam | Durum |
 | --- | --- | --- |
 | 1 — Foundation | Mimari, klasörler, kurulum, tipler | ✅ |
 | 2 — Optimization Engine | Mock veri, müsaitlik, fiyat, DP, testler, demo | ✅ |
-| 3 — Frontend | Arama formu, sonuçlar, zaman çizelgesi, responsive, loading/boş durumlar | ⏳ |
+| 3 — Frontend | Arama formu, sonuçlar, zaman çizelgesi, responsive, loading/boş durumlar | ✅ |
 | 4 — Integration Readiness | Route handler/API, hata yönetimi, `server-only`, önbellek, dokümantasyon | ⏳ |

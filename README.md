@@ -19,7 +19,7 @@ Bölünmüş:   Otel B  20–21 Ocak  900 TL
 | --- | --- | --- |
 | 1 | Mimari, kurulum, TypeScript veri modelleri | ✅ |
 | 2 | Optimizasyon motoru, mock veri, testler, terminal demosu | ✅ |
-| 3 | Arama arayüzü | ⏳ |
+| 3 | Arama arayüzü: form, sonuçlar, zaman çizelgesi, mobil uyum | ✅ |
 | 4 | API/entegrasyon hazırlığı | ⏳ |
 
 ## Kurulum
@@ -33,6 +33,15 @@ npm install
 ```bash
 cp .env.example .env.local
 ```
+
+Uygulamayı başlatıp http://localhost:3000 adresini açın:
+
+```bash
+npm run dev
+```
+
+`.env.local` içinde `MOCK_PROVIDER_LATENCY_MS=400` gibi bir değer, gerçek bir API'nin gecikmesini taklit eder;
+yükleme durumlarını görmek için kullanışlıdır.
 
 ## Komutlar
 
@@ -70,7 +79,9 @@ src/
   engine/      Saf optimizasyon motoru: teklif tablosu, DP optimizer, öneri kuralları, plan doğrulama
   providers/   AccommodationProvider arayüzü, registry ve mock (simüle) sağlayıcı
   services/    searchStays (arama akışı) ve validateSearchQuery (girdi doğrulama)
-  app/         Next.js App Router (Faz 3)
+  app/         Next.js App Router: / (ana sayfa) ve /search (sonuçlar)
+  components/  Arama formu, sonuç kartları, zaman çizelgesi; ui/ altında shadcn/ui
+  lib/         Türkçe biçimlendirme, arayüz metinleri, URL ↔ arama dönüşümü
   test/        Test yardımcıları
 scripts/       Terminal demosu
 docs/          Mimari ve algoritma belgesi
@@ -81,5 +92,5 @@ Mimarinin, algoritmanın matematiğinin ve test stratejisinin ayrıntıları iç
 
 ## Teknoloji
 
-Next.js 16 (App Router), TypeScript (strict, `noUncheckedIndexedAccess`), Tailwind CSS 4, date-fns, Vitest,
-tsx (yalnızca demo betiği için). shadcn/ui, arayüz geliştirilirken (Faz 3) eklenecek.
+Next.js 16 (App Router, Cache Components), TypeScript (strict, `noUncheckedIndexedAccess`), Tailwind CSS 4,
+shadcn/ui (Base UI), lucide-react, date-fns, Vitest, tsx (yalnızca demo betiği için).

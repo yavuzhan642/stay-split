@@ -12,27 +12,11 @@ import { tr } from "date-fns/locale";
 import { findCity } from "@/domain/cities";
 import { addDays, todayInTimeZone, type IsoDate } from "@/domain/dates";
 import { formatMoney } from "@/domain/money";
-import type { EmptyReason, RecommendationReason, SearchResult, StayPlan } from "@/domain/search";
+import type { SearchResult, StayPlan } from "@/domain/search";
+import { EMPTY_STATE_COPY, recommendationCopy } from "@/lib/messages";
 import { createAccommodationProvider } from "@/providers/registry";
 import { validateSearchQuery } from "@/services/search-query";
 import { searchStays } from "@/services/search-stays";
-
-const REASONS: Record<RecommendationReason, string> = {
-  "split-saves-money": "Konaklamayı bölmek, en iyi tek otelden belirgin şekilde daha ucuz.",
-  "no-single-available": "Hiçbir tesis tüm geceler için müsait değil; bölmek tek seçenek.",
-  "single-only-requested": "Otel değiştirmek istemediğin için yalnızca tek tesis arandı.",
-  "no-split-available": "Geçerli bir bölünmüş konaklama bulunamadı.",
-  "tie-prefers-fewer-switches": "Bölünmüş konaklama aynı fiyatta; otel değiştirmeye değmez.",
-  "savings-below-threshold": "Bölmek biraz daha ucuz ama tasarruf otel değiştirmeye değecek kadar büyük değil.",
-  "transfer-cost-cancels-savings": "Bölmek konaklamada ucuz olurdu ama tahmini transfer maliyeti tasarrufu siliyor.",
-  "single-is-cheapest": "Tek otelde kalmak en ucuz seçenek.",
-};
-
-const EMPTY_REASONS: Record<EmptyReason, string> = {
-  "no-matching-properties": "Seçtiğin filtrelere uyan tesis yok.",
-  "no-availability": "Bu tarihlerin tüm gecelerini kapsayan bir kombinasyon bulunamadı.",
-  "over-budget": "Uygun planlar var ama hepsi bütçeni aşıyor.",
-};
 
 const { values } = parseArgs({
   options: {
@@ -89,7 +73,8 @@ function print(result: SearchResult): void {
   }
 
   if (!result.recommendation || !result.recommended) {
-    console.log(`\nSonuç bulunamadı. ${result.emptyReason ? EMPTY_REASONS[result.emptyReason] : ""}`);
+    const empty = result.emptyReason ? EMPTY_STATE_COPY[result.emptyReason] : null;
+    console.log(`\nSonuç bulunamadı.${empty ? ` ${empty.title}. ${empty.body}` : ""}`);
   } else {
     const { recommendation, recommended } = result;
     const kind = recommendation.kind === "split" ? "Bölünmüş konaklama" : "Tek otel";
@@ -97,10 +82,8 @@ function print(result: SearchResult): void {
       ? ` (tek otele göre ${formatMoney(recommendation.savings.amount)} / %${decimal(recommendation.savings.percent)} tasarruf)`
       : "";
     console.log(`\nÖNERİ: ${kind} — ${formatMoney(recommended.totalCost)}${savings}`);
-    console.log(`  ${REASONS[recommendation.reason]}`);
-    if (recommendation.savingsBeforeTransfer) {
-      console.log(`  Transfer hariç tasarruf: ${formatMoney(recommendation.savingsBeforeTransfer)}`);
-    }
+    const copy = recommendationCopy(recommendation, result);
+    console.log(`  ${copy.title}. ${copy.body}`);
     printSegments(recommended);
   }
 
