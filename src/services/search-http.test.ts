@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ProviderError, type AccommodationProvider } from "@/providers/types";
 import { InMemoryProvider, makeProperty, makeQuote } from "@/test/builders";
+import { createRateLimiter } from "./rate-limit";
 import { handleSearchRequest, type SearchApiResponse } from "./search-http";
 
 const NOW = new Date("2026-10-24T09:00:00Z");
@@ -43,6 +44,28 @@ describe("GET /api/search", () => {
       reason: "split-saves-money",
       savings: { amount: { amount: 180_000, currency: "TRY" }, percent: 40 },
     });
+  });
+
+  it("turns away clients over their rate limit with 429, before touching the provider", async () => {
+    let providerCalls = 0;
+    const counting: AccommodationProvider = {
+      ...briefExample,
+      info: briefExample.info,
+      searchProperties: async (criteria) => {
+        providerCalls++;
+        return briefExample.searchProperties(criteria);
+      },
+      getQuotes: (request) => briefExample.getQuotes(request),
+    };
+    const rateLimiter = createRateLimiter({ limit: 1, windowMs: 60_000, now: () => 0 });
+    const request = () => new Request(`http://localhost/api/search?${QUERY}`, { headers: { "x-forwarded-for": "203.0.113.7" } });
+
+    expect((await handleSearchRequest(request(), { provider: counting, rateLimiter, now: NOW })).status).toBe(200);
+    const limited = await handleSearchRequest(request(), { provider: counting, rateLimiter, now: NOW });
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toBe("60");
+    expect(((await limited.json()) as SearchApiResponse & { error: { code: string } }).error.code).toBe("RATE_LIMITED");
+    expect(providerCalls).toBe(1);
   });
 
   it("explains an invalid query field by field with 400", async () => {

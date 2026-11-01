@@ -1,10 +1,11 @@
 import type { SearchResult } from "@/domain/search";
 import { rawSearchParams, searchParamsToInput } from "@/lib/search-params";
 import { ProviderError, type AccommodationProvider } from "@/providers/types";
+import { clientKeyFromRequest, type RateLimiter } from "./rate-limit";
 import { validateSearchQuery, type ValidationIssue } from "./search-query";
 import { searchStays } from "./search-stays";
 
-export type ApiErrorCode = "INVALID_QUERY" | "PROVIDER_UNAVAILABLE" | "PROVIDER_ERROR" | "INTERNAL";
+export type ApiErrorCode = "INVALID_QUERY" | "RATE_LIMITED" | "PROVIDER_UNAVAILABLE" | "PROVIDER_ERROR" | "INTERNAL";
 
 export interface ApiError {
   readonly code: ApiErrorCode;
@@ -18,6 +19,8 @@ export type SearchApiResponse = { readonly data: SearchResult } | { readonly err
 
 export interface SearchHttpDependencies {
   readonly provider: AccommodationProvider;
+  /** Omit to disable rate limiting. */
+  readonly rateLimiter?: RateLimiter;
   readonly now?: Date;
   readonly logError?: (event: string, details: Record<string, unknown>) => void;
 }
@@ -28,10 +31,21 @@ export interface SearchHttpDependencies {
  * the route file so it is a plain function of (Request, deps) → Response.
  *
  * Status codes tell clients what to do next: 400 = fix the request,
- * 503 = try again later (with Retry-After), 502/500 = not your fault.
+ * 429/503 = try again later (with Retry-After), 502/500 = not your fault.
  */
 export async function handleSearchRequest(request: Request, deps: SearchHttpDependencies): Promise<Response> {
   const logError = deps.logError ?? defaultLogError;
+
+  // Checked first: a flood of requests must not reach the provider quota at all.
+  const limit = deps.rateLimiter?.check(clientKeyFromRequest(request));
+  if (limit && !limit.allowed) {
+    return json(
+      { error: { code: "RATE_LIMITED", message: "Çok fazla istek gönderildi. Lütfen biraz bekleyip tekrar deneyin." } },
+      429,
+      { "Retry-After": String(limit.retryAfterSeconds) },
+    );
+  }
+
   const params = rawSearchParams(new URL(request.url).searchParams);
   const validation = validateSearchQuery(searchParamsToInput(params), { now: deps.now });
 

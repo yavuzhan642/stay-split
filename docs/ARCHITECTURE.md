@@ -183,7 +183,7 @@ istek → önbellek → bölme (batching) → yeniden deneme → zaman aşımı 
 
 | Katman | Ne yapar | Neden bu sırada |
 | --- | --- | --- |
-| `withQuoteCache` | (tesis, aralık, kişi, para birimi) başına cevabı TTL süresince saklar; "müsait değil" cevabını da saklar | En dışta: önbellekteyse hiçbir ağ işi yapılmaz |
+| `withQuoteCache` | (tesis, aralık, kişi, para birimi) başına cevabı TTL süresince saklar; "müsait değil" cevabını da saklar; aynı anda gelen özdeş istekleri tek çağrıda birleştirir | En dışta: önbellekteyse hiçbir ağ işi yapılmaz |
 | `withBatching` | Sağlayıcının `limits` sınırını aşan isteği parçalara böler, eşzamanlılığı sınırlar; bir parça düşerse diğerlerini iptal eder | Parçalar ayrı ayrı yeniden denenebilsin |
 | `withRetry` | Yalnızca `retryable` hatalarda, üstel bekleme + rastgele sapma (full jitter) ile tekrar dener | Her denemeye zaman aşımı katmanı yeni bir süre verir |
 | `withTimeout` | Her çağrıya süre sınırı koyar; süre dolunca isteği iptal eder | En içte: adaptörün tek bir denemesini sınırlar |
@@ -225,13 +225,18 @@ Kurallar: uydurma API anahtarı yok, izinsiz scraping yok, sağlayıcı verisini
 `GET /api/search`, sayfanın yaptığı aramayı JSON olarak sunar. Sözleşme [API.md](API.md) dosyasında.
 İşleyici (`src/services/search-http.ts`), route dosyasından ayrı ve `(Request, bağımlılıklar) → Response`
 biçiminde düz bir fonksiyon. Bu sayede sunucu başlatmadan test edilir. Durum kodları istemciye ne yapacağını
-söyler: 400 girdiyi düzelt, 503 sonra tekrar dene (`Retry-After` ile), 502 ve 500 senin hatan değil. İç hata
-ayrıntıları yanıta hiç girmez; tek satır JSON olarak loglanır.
+söyler: 400 girdiyi düzelt, 429 ve 503 sonra tekrar dene (`Retry-After` ile), 502 ve 500 senin hatan değil. İç
+hata ayrıntıları yanıta hiç girmez; tek satır JSON olarak loglanır.
+
+**Hız sınırı** (`src/services/rate-limit.ts`) istemci başına bir **token bucket** kullanır: her istemcinin
+`API_RATE_LIMIT_PER_MINUTE` jetonu vardır, jetonlar sürekli dolar ve her istek bir jeton harcar. Sabit
+"dakikada N" penceresinden farkı şu: pencere sınırında art arda 2N istek atma açığı yoktur. Kontrol,
+sağlayıcıya hiç dokunmadan önce yapılır; böylece istek seli sağlayıcı kotasına ulaşmaz.
 
 ## 8. Test stratejisi
 
 ```
-npm test          # 108 test, ~2 sn
+npm test          # 115 test, ~2 sn
 ```
 
 | Gereksinim | Test |
@@ -246,7 +251,8 @@ npm test          # 108 test, ~2 sn
 | Boşluk/çakışma yok | *never produces gaps or overlaps between stays* (3 şehir × 4 tarih × transfer açık/kapalı) |
 | Toplam teklif fiyatı | `mock-provider.test.ts` → *prices a stay as a whole, not as a sum of nights* |
 | Zaman aşımı, yeniden deneme, bölme, önbellek | `resilience.test.ts` (sahte zamanlayıcılar ve dengesiz sahte sağlayıcılarla); katmanların arama sonucunu değiştirmediği de test ediliyor |
-| HTTP API | `search-http.test.ts` → 200, 400, 503 + `Retry-After`, 502, 500 (iç ayrıntı sızmadan) |
+| HTTP API | `search-http.test.ts` → 200, 400, 429, 503 + `Retry-After`, 502, 500 (iç ayrıntı sızmadan) |
+| Hız sınırı | `rate-limit.test.ts` → ani yük sınırı, sürekli dolum, istemci başına ayrı bütçe, bellek sınırı |
 
 **Diferansiyel test:** `optimizer.test.ts` 400 rastgele küçük örnekte DP'nin çıktısını, tüm planları tek tek
 deneyen kaba kuvvet algoritmasıyla birebir karşılaştırır: sıralama, değişiklik sayısına göre listeler ve plan
@@ -281,10 +287,16 @@ zaman tarayıcıya ulaşmaz.
 sayfada olduğu için sıralamak yeni bir sağlayıcı isteği gerektirmez. Fiyat dökümü ve plan ayrıntıları yerel
 `<details>` ile açılır ve JavaScript gerektirmez.
 
-**Görsel dil.** Segment i her yerde i. rengi taşır (`stay-colors.ts`). Zaman çizelgesindeki çubuk ile altındaki
-konaklama kartı bu sayede eşleşir. Çubuklar CSS grid sütunlarına tarihlerden hesaplanarak yerleştirilir;
-boşluk ya da çakışma olsaydı göze batardı. Demo verisi her sonuç sayfasında ve kartlarda açıkça belirtilir,
-rezervasyon bağlantısı yerine "Rezervasyon bağlantısı yok (demo)" yazar.
+**Görsel dil.** Arayüz sade bir seyahat arama sitesi gibi tasarlandı: lacivert üst bant içinde arama kutusu,
+gri zemin üstünde beyaz kartlar, eylemler için tek mavi. Tokenlar, bileşen desenleri ve gerekçeleri
+[DESIGN.md](DESIGN.md) dosyasında. Segment i her yerde i. rengi taşır (`stay-colors.ts`), bu
+yüzden zaman çizelgesindeki çubuk ile altındaki konaklama satırı eşleşir. Çubuklar CSS grid sütunlarına
+tarihlerden hesaplanarak yerleştirilir; boşluk ya da çakışma olsaydı göze batardı. Demo verisi her sonuç
+sayfasında açıkça belirtilir ve rezervasyon bağlantısı yerine "Rezervasyon bağlantısı yok (demo)" yazar.
+
+**Paylaşım ve tanınırlık.** `icon.svg` (sekme ikonu), `apple-icon.tsx` (iOS ana ekran ikonu) ve
+`opengraph-image.tsx` (link önizleme kartı) derleme anında JSX'ten üretilir; elle bakımı yapılan bir görsel
+dosyası yoktur.
 
 **Durumlar.** Yükleme (iskelet ve butonda `useFormStatus`), alan bazlı doğrulama hataları, üç boş durum
 (tesis yok, müsaitlik yok, bütçe aşımı; her biri tek tıkla deneme bağlantılarıyla) ve sağlayıcı hataları
@@ -298,11 +310,13 @@ için `error.tsx`.
   tasarrufu benzer kalite/tür içinde ölçmek düşünülmeli.
 - **Ölçek.** P büyüdüğünde (yüzlerce tesis), P² terimi için aday ön eleme gerekir: fiyat ya da puanla ilk M
   tesis seçilmeli.
-- **Önbellek süreç içi.** Sunucusuz barındırmada her örneğin kendi önbelleği olur. Kullanıcı sayısı büyüyünce
-  paylaşılan bir depoya (Redis veya `'use cache: remote'`) geçilmeli. Aynı anda gelen iki özdeş istek şu an
-  ikisi de sağlayıcıya gider; bunları tek istekte birleştirmek (in-flight dedupe) sonraki adım.
-- **Hız sınırı yok.** `/api/search` herkese açık. Gerçek bir sağlayıcının kotası devreye girmeden önce IP ya
-  da anahtar bazlı hız sınırlaması (rate limiting) eklenmeli.
+- **Önbellek ve hız sınırı süreç içi.** Sunucusuz barındırmada her örneğin kendi önbelleği ve kendi jeton
+  kovası olur. Kullanıcı sayısı büyüyünce ikisi de paylaşılan bir depoya (Redis veya `'use cache: remote'`)
+  taşınmalı. Hız sınırı şimdilik yalnızca `/api/search` için var; sonuç sayfası da sağlayıcıyı çağırdığı için
+  gerçek sağlayıcıya geçerken ona da uygulanmalı.
+- **Ortak çağrı iptali.** Önbellek, eşzamanlı özdeş istekleri tek çağrıda birleştirir. İlk istemci aramayı
+  iptal ederse, aynı çağrıyı bekleyen ikinci istemcinin araması da düşer. Bu nadir bir durum ve bilerek kabul
+  edildi.
 - **Fiyat tazeliği.** `retrievedAt` saklanıyor. Rezervasyona yönlendirmeden önce fiyat yeniden doğrulanmalı.
 
 ## 11. Yol haritası

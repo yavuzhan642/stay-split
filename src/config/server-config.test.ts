@@ -9,6 +9,7 @@ describe("loadServerConfig", () => {
       providerTimeoutMs: 8_000,
       providerMaxRetries: 2,
       quoteCacheTtlSeconds: 120,
+      apiRateLimitPerMinute: 30,
     });
   });
 

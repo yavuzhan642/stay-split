@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCwIcon } from "lucide-react";
+import { CloudOffIcon, RefreshCwIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -12,20 +12,20 @@ export default function SearchError({ error, retry }: { error: unknown; retry: (
   }, [error]);
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
-      <h1 className="text-2xl font-semibold">Arama şu an tamamlanamadı</h1>
-      <p className="text-muted-foreground">
-        Konaklama verilerine ulaşırken bir sorun oluştu. Birkaç saniye sonra yeniden dene; sorun sürerse farklı tarihlerle
-        aramayı dene.
-      </p>
-      <div className="flex gap-2">
-        <Button onClick={() => retry()}>
-          <RefreshCwIcon aria-hidden="true" />
-          Yeniden dene
-        </Button>
-        <Link href="/" className={buttonVariants({ variant: "outline" })}>
-          Ana sayfa
-        </Link>
+    <main className="flex flex-1 items-center justify-center px-4 py-16 sm:py-24">
+      <div className="flex max-w-md flex-col items-center gap-3 text-center">
+        <CloudOffIcon className="size-10 text-link [stroke-width:1.5]" aria-hidden="true" />
+        <h1 className="text-2xl">Arama şu an tamamlanamadı</h1>
+        <p className="text-ink-muted">Konaklama verilerine ulaşırken bir sorun oluştu. Birkaç saniye sonra yeniden dene.</p>
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          <Button size="lg" onClick={() => retry()}>
+            <RefreshCwIcon aria-hidden="true" />
+            Yeniden dene
+          </Button>
+          <Link href="/" className={buttonVariants({ variant: "secondary", size: "lg" })}>
+            Ana sayfa
+          </Link>
+        </div>
       </div>
     </main>
   );

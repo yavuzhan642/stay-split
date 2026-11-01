@@ -1,12 +1,15 @@
 /**
  * Segment i of a plan always gets color i, in the timeline and in the stay
- * cards, so the eye links "the teal bar" to "the teal card". Class names are
- * spelled out in full because Tailwind only generates classes it can find.
+ * rows, so the eye links "the navy bar" to "the navy stay". Bars are solid
+ * fills with their own text color; "ink" is the same hue for text on white.
+ * Amber is too light to stand alone on white, so its thin marks get an inset
+ * edge. Class names are spelled out in full because Tailwind only generates
+ * classes it can find.
  */
 const STAY_COLORS = [
-  { bar: "bg-stay-1", soft: "bg-stay-1-soft", text: "text-stay-1", accent: "border-l-stay-1" },
-  { bar: "bg-stay-2", soft: "bg-stay-2-soft", text: "text-stay-2", accent: "border-l-stay-2" },
-  { bar: "bg-stay-3", soft: "bg-stay-3-soft", text: "text-stay-3", accent: "border-l-stay-3" },
+  { fill: "bg-stay-1 text-on-stay-1", bar: "bg-stay-1", ink: "text-stay-1-ink" },
+  { fill: "bg-stay-2 text-on-stay-2", bar: "bg-stay-2 shadow-[inset_0_0_0_1px_var(--stay-2-ink)]", ink: "text-stay-2-ink" },
+  { fill: "bg-stay-3 text-on-stay-3", bar: "bg-stay-3", ink: "text-stay-3-ink" },
 ] as const;
 
 export type StayColor = (typeof STAY_COLORS)[number];

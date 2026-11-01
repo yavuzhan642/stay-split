@@ -18,6 +18,8 @@ export interface ServerConfig {
   readonly providerMaxRetries: number;
   /** How long a price may be reused. Short, because prices move; 0 disables caching. */
   readonly quoteCacheTtlSeconds: number;
+  /** Requests per minute one client may send to /api/search; 0 disables the limit. */
+  readonly apiRateLimitPerMinute: number;
 }
 
 export class ConfigError extends Error {
@@ -51,6 +53,7 @@ export function loadServerConfig(env: Record<string, string | undefined> = proce
     providerTimeoutMs: integer("PROVIDER_TIMEOUT_MS", 8_000, 100, 60_000),
     providerMaxRetries: integer("PROVIDER_MAX_RETRIES", 2, 0, 5),
     quoteCacheTtlSeconds: integer("QUOTE_CACHE_TTL_SECONDS", 120, 0, 3_600),
+    apiRateLimitPerMinute: integer("API_RATE_LIMIT_PER_MINUTE", 30, 0, 10_000),
   };
 
   if (problems.length > 0) throw new ConfigError(problems);

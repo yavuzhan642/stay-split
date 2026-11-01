@@ -12,9 +12,10 @@ interface StayTimelineProps {
 }
 
 /**
- * One column per night, one colored bar per stay. Bars are placed with CSS
- * grid columns computed from the dates, so a gap or overlap between stays
- * would be visible at a glance (the engine guarantees there is none).
+ * One column per night, one bar per stay. Bars are placed with CSS grid
+ * columns computed from the dates, so a gap or an overlap between stays would
+ * be visible at a glance (the engine guarantees there is none). Each change
+ * day gets a small round marker on the seam between two bars.
  */
 export function StayTimeline({ plan, compact = false }: StayTimelineProps) {
   const first = plan.segments[0];
@@ -30,67 +31,62 @@ export function StayTimeline({ plan, compact = false }: StayTimelineProps) {
     .map((s) => `${s.property.name}: ${formatDay(s.checkIn)} – ${formatDay(s.checkOut)}, ${formatNights(s.nights)}`)
     .join("; ");
 
+  if (compact) {
+    return (
+      <div className="grid gap-x-1" style={columns} role="img" aria-label={`Zaman çizelgesi. ${description}`}>
+        {plan.segments.map((segment, index) => (
+          <div
+            key={segment.quote.id}
+            className={cn("h-1.5 rounded-full", stayColor(index).bar)}
+            style={{ gridColumn: `${nightsBetween(first.checkIn, segment.checkIn) + 1} / span ${segment.nights}` }}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <figure className="w-full" aria-label={`Konaklama zaman çizelgesi. ${description}`}>
-      {!compact && (
-        <div className="mb-1.5 grid gap-x-1 text-center text-[11px] leading-tight text-muted-foreground" style={columns} aria-hidden="true">
-          {nights.map((night, index) => (
-            <div key={night} className="min-w-0">
-              {index % labelEvery === 0 && (
-                <>
-                  <span className="block truncate">{formatWeekday(night)}</span>
-                  <span className="block font-medium text-foreground tabular-nums">{formatDayOfMonth(night)}</span>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="relative grid gap-x-1" style={columns} aria-hidden="true">
-        {plan.segments.map((segment, index) => {
-          const offset = nightsBetween(first.checkIn, segment.checkIn);
-          return (
-            <div
-              key={segment.quote.id}
-              className={cn(
-                "flex min-w-0 items-center rounded-md text-white",
-                stayColor(index).bar,
-                compact ? "h-2" : "h-11 px-2.5",
-              )}
-              style={{ gridColumn: `${offset + 1} / span ${segment.nights}` }}
-            >
-              {!compact && (
-                <span className="min-w-0 truncate text-xs font-semibold">
-                  {segment.property.name}
-                  <span className="font-normal opacity-85"> · {formatNights(segment.nights)}</span>
-                </span>
-              )}
-            </div>
-          );
-        })}
-
-        {!compact &&
-          plan.transfers.map((transfer) => {
-            const position = (nightsBetween(first.checkIn, transfer.date) / nights.length) * 100;
-            return (
-              <span
-                key={transfer.date}
-                className="absolute top-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-card bg-foreground text-background shadow-sm"
-                style={{ left: `${position}%` }}
-              >
-                <ArrowLeftRightIcon className="size-3.5" />
-              </span>
-            );
-          })}
+      <div className="mb-2 grid gap-x-1 text-center" style={columns} aria-hidden="true">
+        {nights.map((night, index) => (
+          <div key={night} className="min-w-0">
+            {index % labelEvery === 0 && (
+              <>
+                <span className="block truncate text-xs text-ink-muted">{formatWeekday(night)}</span>
+                <span className="block text-sm font-bold tabular-nums">{formatDayOfMonth(night)}</span>
+              </>
+            )}
+          </div>
+        ))}
       </div>
 
-      {!compact && (
-        <figcaption className="mt-1.5 flex justify-between text-xs text-muted-foreground">
-          <span>Giriş {formatDay(first.checkIn)}</span>
-          <span>Çıkış {formatDay(last.checkOut)}</span>
-        </figcaption>
-      )}
+      <div className="relative grid h-14 gap-x-1" style={columns} aria-hidden="true">
+        {plan.segments.map((segment, index) => (
+          <div
+            key={segment.quote.id}
+            className={cn("flex min-w-0 flex-col justify-center rounded-lg px-3", stayColor(index).fill)}
+            style={{ gridColumn: `${nightsBetween(first.checkIn, segment.checkIn) + 1} / span ${segment.nights}` }}
+          >
+            <span className="truncate text-sm font-semibold">{segment.property.name}</span>
+            <span className="truncate text-xs">{formatNights(segment.nights)}</span>
+          </div>
+        ))}
+
+        {plan.transfers.map((transfer) => (
+          <span
+            key={transfer.date}
+            className="absolute top-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-card text-ink shadow-card ring-1 ring-line"
+            style={{ left: `${(nightsBetween(first.checkIn, transfer.date) / nights.length) * 100}%` }}
+          >
+            <ArrowLeftRightIcon className="size-3.5" />
+          </span>
+        ))}
+      </div>
+
+      <figcaption className="mt-2 flex justify-between text-xs text-ink-muted">
+        <span>Giriş · {formatDay(first.checkIn)}</span>
+        <span>Çıkış · {formatDay(last.checkOut)}</span>
+      </figcaption>
     </figure>
   );
 }

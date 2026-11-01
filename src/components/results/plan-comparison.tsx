@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { cn } from "cn";
 import type { SearchResult, StayPlan } from "@/domain/search";
 import { formatDay } from "@/lib/format";
@@ -11,7 +12,7 @@ export function PlanComparison({ result }: { result: SearchResult }) {
 
   return (
     <section aria-labelledby="comparison-title" className="flex flex-col gap-3">
-      <h2 id="comparison-title" className="text-lg font-semibold">
+      <h2 id="comparison-title" className="text-xl">
         Tek otel mi, bölünmüş mü?
       </h2>
       <div className="grid gap-3 md:grid-cols-2">
@@ -48,35 +49,30 @@ function ComparisonCard({
   missing: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-3 rounded-xl border bg-card p-4", recommended && "border-primary/50 ring-1 ring-primary/20")}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          {plan && (
-            <p className="mt-1 text-sm font-medium">
-              {plan.segments.map((s) => s.property.name).join(" → ")}
-            </p>
-          )}
+    <div className={cn("flex flex-col gap-4 rounded-xl bg-card p-5 shadow-card", recommended && "ring-2 ring-primary")}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+            {title}
+            {recommended && <Badge variant="recommended">Önerilen</Badge>}
+          </p>
+          {plan && <p className="mt-1 font-bold">{plan.segments.map((s) => s.property.name).join(" → ")}</p>}
         </div>
         {plan && <PlanTotal plan={plan} />}
       </div>
       {plan ? (
         <>
           <StayTimeline plan={plan} compact />
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
             <span>
               {plan.segments.map((s) => `${formatDay(s.checkIn)}–${formatDay(s.checkOut)}`).join(" · ")}
-              {!plan.withinBudget && <span className="ml-1 font-medium text-destructive">· bütçeni aşıyor</span>}
+              {!plan.withinBudget && <span className="ml-1 font-semibold text-danger">· bütçeni aşıyor</span>}
             </span>
-            {recommended ? (
-              <span className="font-medium text-primary">Önerilen</span>
-            ) : (
-              plan.switchCount > 0 && <SavingsBadge savings={plan.savingsVsBestSingle} />
-            )}
+            {!recommended && plan.switchCount > 0 && <SavingsBadge savings={plan.savingsVsBestSingle} />}
           </div>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">{missing}</p>
+        <p className="text-sm text-ink-muted">{missing}</p>
       )}
     </div>
   );

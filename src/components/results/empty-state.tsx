@@ -1,4 +1,4 @@
-import { CalendarXIcon, FilterXIcon, WalletIcon } from "lucide-react";
+import { ArrowRightIcon, CalendarXIcon, FilterXIcon, WalletIcon } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import type { EmptyReason, SearchQuery, SearchResult } from "@/domain/search";
@@ -47,28 +47,31 @@ export function EmptyState({ result, reason }: { result: SearchResult; reason: E
     .sort((a, b) => a.totalCost.amount - b.totalCost.amount)[0];
 
   return (
-    <section className="flex flex-col items-center gap-4 rounded-2xl border border-dashed bg-card px-6 py-12 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full bg-muted">
-        <Icon className="size-6 text-muted-foreground" aria-hidden="true" />
-      </span>
+    <section className="flex flex-col items-center gap-4 rounded-xl bg-card px-6 py-12 text-center shadow-card">
+      <Icon className="size-10 text-link [stroke-width:1.5]" aria-hidden="true" />
       <div className="max-w-md">
-        <h2 className="text-lg font-semibold">{copy.title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{copy.body}</p>
+        <h2 className="text-xl">{copy.title}</h2>
+        <p className="mt-1.5 text-ink-muted">{copy.body}</p>
         {reason === "over-budget" && cheapest && (
-          <p className="mt-2 text-sm">
-            En uygun seçenek <span className="font-semibold">{formatMoney(cheapest.totalCost)}</span>.
+          <p className="mt-2">
+            En uygun seçenek <span className="font-bold tabular-nums">{formatMoney(cheapest.totalCost)}</span>.
           </p>
         )}
-      </div>
-      <div className="flex flex-wrap justify-center gap-2">
-        {suggestions.map((suggestion) => (
-          <Link key={suggestion.href} href={suggestion.href} className={buttonVariants({ variant: "outline" })}>
-            {suggestion.label}
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+          {suggestions.map((suggestion, index) => (
+            <Link
+              key={suggestion.href}
+              href={suggestion.href}
+              className={buttonVariants({ variant: index === 0 ? "default" : "secondary" })}
+            >
+              {suggestion.label}
+            </Link>
+          ))}
+          <Link href="#search-form" className={buttonVariants({ variant: "link", className: "ml-1" })}>
+            Tarihleri değiştir
+            <ArrowRightIcon aria-hidden="true" />
           </Link>
-        ))}
-        <Link href="#search-form" className={buttonVariants({ variant: "ghost" })}>
-          Tarihleri değiştir
-        </Link>
+        </div>
       </div>
     </section>
   );

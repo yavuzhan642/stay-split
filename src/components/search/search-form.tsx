@@ -1,14 +1,12 @@
 "use client";
 
-import { Loader2Icon, SearchIcon, SlidersHorizontalIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, Loader2Icon, SearchIcon, SlidersHorizontalIcon } from "lucide-react";
 import Form from "next/form";
-import { useState, useSyncExternalStore } from "react";
+import { useId, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { cn } from "cn";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { CITIES, findCity } from "@/domain/cities";
 import { addDays, isIsoDate, nightsBetween, todayInTimeZone, type IsoDate } from "@/domain/dates";
 import { PROPERTY_TYPES } from "@/domain/property";
@@ -33,13 +31,16 @@ function useToday(timeZone: string): IsoDate | null {
 interface SearchFormProps {
   readonly defaults?: SearchFormDefaults;
   readonly issues?: readonly ValidationIssue[];
-  /** "hero" shows every field; "compact" tucks the filters away, for the results page. */
+  /** "hero" shows every option; "compact" folds the filters away, for the results page. */
   readonly variant?: "hero" | "compact";
 }
 
 /**
  * A plain GET form to /search: it works without JavaScript, and `next/form`
  * upgrades it to a client-side navigation when JavaScript is available.
+ *
+ * Layout: one white panel of fields on wide screens with a blue "Ara" button
+ * at the end; on phones the same cells stack and the button goes full width.
  */
 export function SearchForm({ defaults = {}, issues = [], variant = "hero" }: SearchFormProps) {
   const [city, setCity] = useState(defaults.city ?? CITIES[0].id);
@@ -69,95 +70,17 @@ export function SearchForm({ defaults = {}, issues = [], variant = "hero" }: Sea
   const selectedTypes = defaults.types ?? [];
   const activeFilters =
     (selectedTypes.length > 0 ? 1 : 0) + (defaults.switches === "0" ? 1 : 0) + (defaults.budget ? 1 : 0) + (defaults.transfer ? 1 : 0);
-  const filtersHaveErrors = Boolean(errors.propertyTypes || errors.maxSwitches || errors.budget || errors.includeTransferCost);
+  const filterErrors = [errors.propertyTypes, errors.maxSwitches, errors.budget, errors.includeTransferCost].filter(Boolean);
   const compact = variant === "compact";
 
-  const mainFields = (
-    <>
-      <Field data-invalid={Boolean(errors.cityId)}>
-        <FieldLabel htmlFor="search-city">Şehir</FieldLabel>
-        <NativeSelect
-          id="search-city"
-          name={SEARCH_PARAM.cityId}
-          value={city}
-          onChange={(event) => setCity(event.target.value)}
-          size="lg"
-          className="w-full"
-          aria-invalid={Boolean(errors.cityId)}
-        >
-          {CITIES.map((option) => (
-            <NativeSelectOption key={option.id} value={option.id}>
-              {option.name}, {option.country}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-        <FieldError>{errors.cityId}</FieldError>
-      </Field>
-
-      <Field data-invalid={Boolean(errors.checkIn)}>
-        <FieldLabel htmlFor="search-check-in">Giriş</FieldLabel>
-        <Input
-          id="search-check-in"
-          type="date"
-          name={SEARCH_PARAM.checkIn}
-          value={checkInValue}
-          onChange={(event) => changeCheckIn(event.target.value)}
-          min={today ?? undefined}
-          max={today ? addDays(today, SEARCH_LIMITS.maxDaysAhead) : undefined}
-          required
-          className="h-11 bg-card"
-          aria-invalid={Boolean(errors.checkIn)}
-        />
-        <FieldError>{errors.checkIn}</FieldError>
-      </Field>
-
-      <Field data-invalid={Boolean(errors.checkOut)}>
-        <FieldLabel htmlFor="search-check-out">Çıkış</FieldLabel>
-        <Input
-          id="search-check-out"
-          type="date"
-          name={SEARCH_PARAM.checkOut}
-          value={checkOutValue}
-          onChange={(event) => setCheckOut(event.target.value)}
-          min={isIsoDate(checkInValue) ? addDays(checkInValue, 1) : undefined}
-          max={isIsoDate(checkInValue) ? addDays(checkInValue, SEARCH_LIMITS.maxNights) : undefined}
-          required
-          className="h-11 bg-card"
-          aria-invalid={Boolean(errors.checkOut)}
-        />
-        <FieldError>{errors.checkOut}</FieldError>
-      </Field>
-
-      <Field data-invalid={Boolean(errors.adults)}>
-        <FieldLabel htmlFor="search-adults">Yetişkin</FieldLabel>
-        <NativeSelect
-          id="search-adults"
-          name={SEARCH_PARAM.adults}
-          defaultValue={defaults.adults ?? "2"}
-          size="lg"
-          className="w-full"
-          aria-invalid={Boolean(errors.adults)}
-        >
-          {Array.from({ length: SEARCH_LIMITS.maxAdults }, (_, i) => String(i + 1)).map((count) => (
-            <NativeSelectOption key={count} value={count}>
-              {count} yetişkin
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-        <FieldError>{errors.adults}</FieldError>
-      </Field>
-    </>
-  );
-
-  const filterFields = (
-    <div className="grid gap-4 pt-1 md:grid-cols-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.3fr)] lg:items-start">
-      <FieldSet data-invalid={Boolean(errors.propertyTypes)}>
-        <FieldLegend variant="label">Konaklama türü</FieldLegend>
-        <div className="flex flex-wrap gap-2">
+  const filters = (
+    <div className="flex flex-col gap-4 px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+        <FilterGroup label="Tür">
           {PROPERTY_TYPES.map((type) => (
             <label
               key={type}
-              className="inline-flex h-11 cursor-pointer items-center rounded-full border border-input bg-card px-4 text-sm font-medium transition-colors select-none hover:bg-muted has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
+              className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-line-strong bg-card px-3.5 text-sm font-medium transition-colors select-none hover:bg-subtle has-checked:border-primary has-checked:bg-primary-soft has-checked:font-semibold has-checked:text-primary-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
             >
               <input
                 type="checkbox"
@@ -169,137 +92,251 @@ export function SearchForm({ defaults = {}, issues = [], variant = "hero" }: Sea
               {PROPERTY_TYPE_LABELS[type]}
             </label>
           ))}
-        </div>
-        <FieldDescription className="text-xs">Hiçbirini seçmezsen tüm türler aranır.</FieldDescription>
-        <FieldError>{errors.propertyTypes}</FieldError>
-      </FieldSet>
+        </FilterGroup>
 
-      <FieldSet data-invalid={Boolean(errors.maxSwitches)}>
-        <FieldLegend variant="label">Otel değişikliği</FieldLegend>
-        <div className="grid h-11 grid-cols-2 gap-1 rounded-lg border border-input bg-muted p-1">
-          {[
-            { value: "0", label: "Tek otel" },
-            { value: "1", label: "En fazla 1" },
-          ].map((option) => (
-            <label
-              key={option.value}
-              className="flex cursor-pointer items-center justify-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors select-none has-checked:bg-card has-checked:text-foreground has-checked:shadow-sm has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
-            >
-              <input
-                type="radio"
-                name={SEARCH_PARAM.maxSwitches}
-                value={option.value}
-                defaultChecked={(defaults.switches ?? "1") === option.value}
-                className="sr-only"
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
-        <FieldError>{errors.maxSwitches}</FieldError>
-      </FieldSet>
+        <FilterGroup label="Otel değişikliği">
+          <div className="inline-flex gap-2">
+            {[
+              { value: "0", label: "Tek otel" },
+              { value: "1", label: "En fazla 1" },
+            ].map((option) => (
+              <label
+                key={option.value}
+                className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-line-strong bg-card px-3.5 text-sm font-medium transition-colors select-none hover:bg-subtle has-checked:border-primary has-checked:bg-primary-soft has-checked:font-semibold has-checked:text-primary-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
+              >
+                <input
+                  type="radio"
+                  name={SEARCH_PARAM.maxSwitches}
+                  value={option.value}
+                  defaultChecked={(defaults.switches ?? "1") === option.value}
+                  className="sr-only"
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        </FilterGroup>
 
-      <Field data-invalid={Boolean(errors.budget)}>
-        <FieldLabel htmlFor="search-budget">Toplam bütçe</FieldLabel>
-        <div className="relative">
-          <Input
-            id="search-budget"
-            type="number"
-            inputMode="numeric"
-            name={SEARCH_PARAM.budget}
-            defaultValue={defaults.budget}
-            min={1}
-            step="any"
-            placeholder="Sınırsız"
-            className="h-11 bg-card pr-10"
-            aria-invalid={Boolean(errors.budget)}
-          />
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">
-            TL
+        <FilterGroup label="Bütçe">
+          <div className="relative">
+            <input
+              type="number"
+              inputMode="numeric"
+              name={SEARCH_PARAM.budget}
+              defaultValue={defaults.budget}
+              min={1}
+              step="any"
+              placeholder="Sınırsız"
+              aria-label="Toplam bütçe (TL)"
+              aria-invalid={Boolean(errors.budget)}
+              className="h-9 w-32 rounded-lg border border-line-strong bg-card pr-9 pl-3 text-sm tabular-nums outline-none placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus aria-invalid:border-2 aria-invalid:border-danger [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-ink-muted">
+              TL
+            </span>
+          </div>
+        </FilterGroup>
+
+        <label className="flex cursor-pointer items-start gap-3 select-none">
+          {/* The native checkbox, drawn as a blue tick box. */}
+          <span className="relative flex size-5 shrink-0">
+            <input
+              type="checkbox"
+              name={SEARCH_PARAM.includeTransferCost}
+              value="1"
+              defaultChecked={defaults.transfer}
+              className="peer size-5 cursor-pointer appearance-none rounded-sm border-[1.5px] border-line-strong bg-card checked:border-primary checked:bg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            />
+            <CheckIcon
+              className="pointer-events-none absolute inset-0 m-auto size-3.5 text-on-primary opacity-0 [stroke-width:3] peer-checked:opacity-100"
+              aria-hidden="true"
+            />
           </span>
-        </div>
-        <FieldError>{errors.budget}</FieldError>
-      </Field>
-
-      <Field>
-        <span className="text-sm font-medium" aria-hidden="true">
-          Transfer
-        </span>
-        <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-input bg-card px-3 py-2 transition-colors has-checked:border-primary/40 has-checked:bg-accent has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
-          <input
-            type="checkbox"
-            name={SEARCH_PARAM.includeTransferCost}
-            value="1"
-            defaultChecked={defaults.transfer}
-            className="peer sr-only"
-          />
-          <span
-            aria-hidden="true"
-            className="relative h-5 w-9 shrink-0 rounded-full bg-input transition-colors peer-checked:bg-primary after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4"
-          />
-          <span className="text-sm leading-tight">
-            Tahmini transfer maliyetini ekle
-            <span className="block text-xs text-muted-foreground">Oteller arası taksi, mesafeye göre</span>
+          <span className="text-sm leading-5">
+            <span className="font-semibold">Transfer dahil</span>
+            <span className="block text-[13px] leading-[18px] text-ink-muted">Oteller arası taksi</span>
           </span>
         </label>
-      </Field>
+      </div>
+
+      {filterErrors.length > 0 && (
+        <ul className="flex flex-col gap-1 text-[13px] text-danger" role="alert">
+          {filterErrors.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      )}
+      {!compact && (
+        <p className="text-[13px] leading-[18px] text-ink-muted">
+          Tür seçmezsen hepsi aranır. Her olası bölünme tarihini ve otel çiftini hesaplıyoruz; fiyatlar demo verisidir.
+        </p>
+      )}
     </div>
   );
 
   return (
-    <Form action="/search" className="flex flex-col gap-4">
-      <div
-        className={cn(
-          "grid gap-3 sm:grid-cols-2",
-          compact
-            ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_auto] lg:items-start"
-            : "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)]",
-        )}
-      >
-        {mainFields}
-        {compact && (
-          // Top-aligned like the fields, so an error message under a field never shifts the row.
-          <div className="flex flex-col gap-2 sm:col-span-2 lg:col-span-1">
-            <span aria-hidden="true" className="hidden text-sm leading-snug lg:block">
-              &nbsp;
-            </span>
-            <SubmitButton />
-          </div>
-        )}
+    <Form
+      action="/search"
+      className="overflow-hidden rounded-xl bg-card text-ink shadow-panel"
+    >
+      <div className="grid divide-y divide-line md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)_auto] md:divide-x md:divide-y-0">
+        <BarField label="Şehir" error={errors.cityId}>
+          {(describedBy) => (
+            <div className="relative">
+              <select
+                name={SEARCH_PARAM.cityId}
+                value={city}
+                onChange={(event) => setCity(event.target.value)}
+                aria-invalid={Boolean(errors.cityId)}
+                aria-describedby={describedBy}
+                className={controlClass("appearance-none pr-6")}
+              >
+                {CITIES.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}, {option.country}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-0 size-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
+            </div>
+          )}
+        </BarField>
+
+        <BarField label="Giriş" error={errors.checkIn}>
+          {(describedBy) => (
+            <input
+              type="date"
+              name={SEARCH_PARAM.checkIn}
+              value={checkInValue}
+              onChange={(event) => changeCheckIn(event.target.value)}
+              min={today ?? undefined}
+              max={today ? addDays(today, SEARCH_LIMITS.maxDaysAhead) : undefined}
+              required
+              aria-invalid={Boolean(errors.checkIn)}
+              aria-describedby={describedBy}
+              className={controlClass("tabular-nums")}
+            />
+          )}
+        </BarField>
+
+        <BarField label="Çıkış" error={errors.checkOut}>
+          {(describedBy) => (
+            <input
+              type="date"
+              name={SEARCH_PARAM.checkOut}
+              value={checkOutValue}
+              onChange={(event) => setCheckOut(event.target.value)}
+              min={isIsoDate(checkInValue) ? addDays(checkInValue, 1) : undefined}
+              max={isIsoDate(checkInValue) ? addDays(checkInValue, SEARCH_LIMITS.maxNights) : undefined}
+              required
+              aria-invalid={Boolean(errors.checkOut)}
+              aria-describedby={describedBy}
+              className={controlClass("tabular-nums")}
+            />
+          )}
+        </BarField>
+
+        <BarField label="Kişi" error={errors.adults}>
+          {(describedBy) => (
+            <div className="relative">
+              <select
+                name={SEARCH_PARAM.adults}
+                defaultValue={defaults.adults ?? "2"}
+                aria-invalid={Boolean(errors.adults)}
+                aria-describedby={describedBy}
+                className={controlClass("appearance-none pr-6")}
+              >
+                {Array.from({ length: SEARCH_LIMITS.maxAdults }, (_, i) => String(i + 1)).map((count) => (
+                  <option key={count} value={count}>
+                    {count} yetişkin
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-0 size-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
+            </div>
+          )}
+        </BarField>
+
+        <div className="flex p-3 md:border-l-0! md:p-2">
+          <SubmitButton />
+        </div>
       </div>
 
-      {compact ? (
-        <details open={filtersHaveErrors} className="group rounded-lg">
-          <summary className="inline-flex cursor-pointer items-center gap-2 rounded-md text-sm font-medium text-muted-foreground select-none hover:text-foreground [&::-webkit-details-marker]:hidden">
-            <SlidersHorizontalIcon className="size-4" aria-hidden="true" />
-            Filtreler
-            {activeFilters > 0 && (
-              <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-primary-foreground">{activeFilters}</span>
-            )}
-          </summary>
-          <div className="pt-3">{filterFields}</div>
-        </details>
-      ) : (
-        <>
-          {filterFields}
-          <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-muted-foreground">
-              Her olası bölünme tarihini ve otel çiftini hesaplıyoruz. Fiyatlar demo verisidir.
-            </p>
-            <SubmitButton />
-          </div>
-        </>
-      )}
+      <div className="border-t border-line">
+        {compact ? (
+          <details open={filterErrors.length > 0}>
+            <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold text-link select-none hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-focus sm:px-5">
+              <SlidersHorizontalIcon className="size-4" aria-hidden="true" />
+              Filtreler
+              {activeFilters > 0 && <Badge variant="count">{activeFilters}</Badge>}
+            </summary>
+            <div className="border-t border-line">{filters}</div>
+          </details>
+        ) : (
+          filters
+        )}
+      </div>
     </Form>
   );
 }
 
-function SubmitButton({ className }: { className?: string }) {
+function controlClass(extra?: string) {
+  return cn(
+    "w-full min-w-0 bg-transparent text-base leading-6 font-semibold text-ink outline-none",
+    "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-40 hover:[&::-webkit-calendar-picker-indicator]:opacity-70",
+    extra,
+  );
+}
+
+/** One cell of the search bar: small caption on top, the value below, the whole cell clickable. */
+function BarField({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: (describedBy: string | undefined) => ReactNode;
+}) {
+  const errorId = useId();
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer flex-col justify-center gap-1 px-4 py-3 transition-colors hover:bg-subtle focus-within:shadow-[inset_0_-3px_0_var(--focus)] sm:px-5",
+        error && "bg-danger-soft",
+      )}
+    >
+      <span className={cn("text-xs font-semibold", error ? "text-danger" : "text-ink-muted")}>{label}</span>
+      {children(error ? errorId : undefined)}
+      {error && (
+        <span id={errorId} className="text-[13px] leading-[18px] text-danger">
+          {error}
+        </span>
+      )}
+    </label>
+  );
+}
+
+function FilterGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <fieldset className="flex flex-wrap items-center gap-2">
+      <legend className="float-left mr-1 text-sm font-semibold text-ink-muted">{label}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
+function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" disabled={pending} className={cn("h-11 px-6 text-base", className)}>
+    <Button
+      type="submit"
+      size="lg"
+      disabled={pending}
+      className="h-12 w-full md:h-full md:min-h-14 md:w-auto md:px-8"
+    >
       {pending ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : <SearchIcon aria-hidden="true" />}
-      {pending ? "Hesaplanıyor…" : "Kombinasyonları bul"}
+      {pending ? "Hesaplanıyor…" : "Ara"}
     </Button>
   );
 }

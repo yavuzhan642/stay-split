@@ -2,99 +2,193 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* shadcn components carry dark: variants; the MVP ships a light theme only, so no element gets .dark. */
+/* Theme follows the OS (prefers-color-scheme), not a .dark class, so shadcn's dark: variants stay unused. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  /* One family for everything; Figtree draws ₺ correctly and has tabular figures. */
+  --font-sans: var(--font-figtree), "Helvetica Neue", Arial, sans-serif;
   --font-heading: var(--font-sans);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
 
-  /* One color per stay segment, shared by the timeline and the stay cards. */
+  /* Surfaces: a light grey canvas, white cards, a navy brand band at the top. */
+  --color-canvas: var(--canvas);
+  --color-card: var(--card);
+  --color-subtle: var(--subtle);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-on-brand: var(--on-brand);
+  --color-on-brand-muted: var(--on-brand-muted);
+
+  /* One blue for actions, links and the selected state. */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-link: var(--link);
+  --color-focus: var(--focus);
+
+  /* One color per stay segment, shared by the timeline and the stay rows:
+     a solid fill with its own text color, and an ink for text on white. */
   --color-stay-1: var(--stay-1);
-  --color-stay-1-soft: var(--stay-1-soft);
+  --color-on-stay-1: var(--on-stay-1);
+  --color-stay-1-ink: var(--stay-1-ink);
   --color-stay-2: var(--stay-2);
-  --color-stay-2-soft: var(--stay-2-soft);
+  --color-on-stay-2: var(--on-stay-2);
+  --color-stay-2-ink: var(--stay-2-ink);
   --color-stay-3: var(--stay-3);
-  --color-stay-3-soft: var(--stay-3-soft);
+  --color-on-stay-3: var(--on-stay-3);
+  --color-stay-3-ink: var(--stay-3-ink);
   --color-savings: var(--savings);
   --color-savings-soft: var(--savings-soft);
-  --color-demo: var(--demo);
-  --color-demo-soft: var(--demo-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
 
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* shadcn's names, pointed at the same palette so the generated primitives match. */
+  --color-background: var(--canvas);
+  --color-foreground: var(--ink);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--ink);
+  --color-primary-foreground: var(--on-primary);
+  --color-secondary: var(--subtle);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--subtle);
+  --color-muted-foreground: var(--ink-muted);
+  --color-accent: var(--primary-soft);
+  --color-accent-foreground: var(--primary-ink);
+  --color-destructive: var(--danger);
+  --color-border: var(--line);
+  --color-input: var(--line-strong);
+  --color-ring: var(--focus);
+
+  /* 8px for controls, 12px for cards. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 16px;
+  --radius-4xl: 16px;
+
+  --shadow-card: var(--card-shadow);
+  --shadow-panel: var(--panel-shadow);
 }
 
 :root {
-  /* Warm off-white page, white cards, deep-ink text and a sea-teal brand color. */
-  --background: oklch(0.985 0.004 95);
-  --foreground: oklch(0.22 0.02 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.02 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.02 250);
-  --primary: oklch(0.45 0.085 200);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.955 0.012 200);
-  --secondary-foreground: oklch(0.3 0.05 200);
-  --muted: oklch(0.965 0.005 95);
-  --muted-foreground: oklch(0.5 0.02 250);
-  --accent: oklch(0.95 0.02 200);
-  --accent-foreground: oklch(0.3 0.05 200);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.91 0.006 95);
-  --input: oklch(0.88 0.008 95);
-  --ring: oklch(0.6 0.08 200);
-  --radius: 0.75rem;
+  color-scheme: light dark;
 
-  --stay-1: oklch(0.52 0.095 200);
-  --stay-1-soft: oklch(0.955 0.025 200);
-  --stay-2: oklch(0.67 0.155 50);
-  --stay-2-soft: oklch(0.965 0.035 60);
-  --stay-3: oklch(0.55 0.15 300);
-  --stay-3-soft: oklch(0.955 0.03 300);
-  --savings: oklch(0.52 0.13 155);
-  --savings-soft: oklch(0.96 0.04 155);
-  --demo: oklch(0.5 0.11 75);
-  --demo-soft: oklch(0.97 0.04 90);
+  --canvas: #f5f7fa;
+  --card: #ffffff;
+  --subtle: #eef1f5;
+  --ink: #121a26;
+  --ink-muted: #5a6576;
+  --line: #dde2e9;
+  --line-strong: #8792a2;
+  --brand: #0d2340;
+  --on-brand: #ffffff;
+  --on-brand-muted: #b7c4d6;
+
+  --primary: #1460d8;
+  --primary-hover: #0f4fb5;
+  --on-primary: #ffffff;
+  --primary-soft: #e6effc;
+  --primary-ink: #0f4fb5;
+  --link: #1460d8;
+  --focus: #1460d8;
+
+  --stay-1: #1e3a6e;
+  --on-stay-1: #ffffff;
+  --stay-1-ink: #1e3a6e;
+  --stay-2: #f2a313;
+  --on-stay-2: #121a26;
+  --stay-2-ink: #8a5300;
+  --stay-3: #0f766e;
+  --on-stay-3: #ffffff;
+  --stay-3-ink: #0f766e;
+  --savings: #0f7a43;
+  --savings-soft: #e1f4e8;
+  --danger: #c0261c;
+  --danger-soft: #fde8e6;
+
+  --card-shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 1px 3px rgb(16 24 40 / 0.1);
+  --panel-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.45);
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0e141c;
+    --card: #161e29;
+    --subtle: #1d2733;
+    --ink: #e9eef5;
+    --ink-muted: #9eabbd;
+    --line: #2a3544;
+    --line-strong: #66748a;
+    --brand: #0b1b30;
+    --on-brand: #ffffff;
+    --on-brand-muted: #b7c4d6;
+
+    --primary: #2f6fe4;
+    --primary-hover: #4a83ec;
+    --on-primary: #ffffff;
+    --primary-soft: #1a2c4a;
+    --primary-ink: #9cc0ff;
+    --link: #8cb6ff;
+    --focus: #6ea2ff;
+
+    --stay-1: #8fb0ec;
+    --on-stay-1: #0e141c;
+    --stay-1-ink: #a9c2f0;
+    --stay-2: #f5b335;
+    --on-stay-2: #0e141c;
+    --stay-2-ink: #f5c15a;
+    --stay-3: #4fc3b5;
+    --on-stay-3: #0e141c;
+    --stay-3-ink: #6fd3c6;
+    --savings: #5fd08f;
+    --savings-soft: #143323;
+    --danger: #ff8a80;
+    --danger-soft: #3a1b1b;
+
+    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --panel-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.7);
+  }
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-focus;
+  }
+  html {
+    @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-canvas text-ink;
+  }
+  h1,
+  h2,
+  h3 {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .lucide {
+    stroke-width: 1.75;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
-  html {
-    @apply font-sans;
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
   }
 }

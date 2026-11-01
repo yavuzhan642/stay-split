@@ -1,4 +1,3 @@
-import { CalculatorIcon } from "lucide-react";
 import { DemoNotice } from "@/components/demo-notice";
 import { findCity } from "@/domain/cities";
 import { nightsBetween } from "@/domain/dates";
@@ -22,6 +21,7 @@ export async function SearchResults({ query }: { query: SearchQuery }) {
   const nights = nightsBetween(query.checkIn, query.checkOut);
 
   const filters = [
+    formatNights(nights),
     `${query.adults} yetişkin`,
     query.propertyTypes.length > 0 ? query.propertyTypes.map((t) => PROPERTY_TYPE_LABELS[t]).join(", ") : null,
     query.maxSwitches === 0 ? "Tek otel" : "En fazla 1 otel değişikliği",
@@ -30,15 +30,14 @@ export async function SearchResults({ query }: { query: SearchQuery }) {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3">
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {city?.name ?? query.cityId}, {formatDateRange(query.checkIn, query.checkOut)}
+          <h1 className="text-2xl sm:text-[28px]">
+            {city?.name ?? query.cityId}
+            <span className="font-semibold text-ink-muted"> · {formatDateRange(query.checkIn, query.checkOut)}</span>
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {formatNights(nights)} · {filters.join(" · ")}
-          </p>
+          <p className="mt-1 text-sm text-ink-muted">{filters.join(" · ")}</p>
         </div>
         {result.dataSource.isDemo && <DemoNotice />}
       </header>
@@ -59,10 +58,9 @@ export async function SearchResults({ query }: { query: SearchQuery }) {
         </>
       )}
 
-      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-        <CalculatorIcon className="size-3.5 shrink-0" aria-hidden="true" />
-        {formatCount(result.stats.propertiesConsidered)} tesis ve {formatCount(result.stats.stayIntervalsRequested)} tarih
-        aralığı için {formatCount(result.stats.quotesReceived)} fiyat teklifi alındı;{" "}
+      <p className="text-center text-xs text-ink-muted">
+        {formatCount(result.stats.propertiesConsidered)} tesis, {formatCount(result.stats.stayIntervalsRequested)} tarih
+        aralığı ve {formatCount(result.stats.quotesReceived)} fiyat teklifiyle{" "}
         {formatCount(result.stats.validCombinations)} geçerli kombinasyon değerlendirildi.
       </p>
     </div>

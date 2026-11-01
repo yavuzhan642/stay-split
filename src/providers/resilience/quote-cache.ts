@@ -1,6 +1,6 @@
 import type { Property } from "@/domain/property";
 import type { StayInterval, StayQuote } from "@/domain/quote";
-import type { AccommodationProvider, PropertySearchCriteria, QuoteRequest } from "../types";
+import type { AccommodationProvider, PropertySearchCriteria, ProviderCallOptions, QuoteRequest } from "../types";
 
 export interface QuoteCacheOptions {
   /** How long an answer may be reused. Prices move, so keep this short (minutes). */
@@ -27,6 +27,41 @@ export function withQuoteCache(inner: AccommodationProvider, options: QuoteCache
   const now = options.now ?? Date.now;
   const quotes = new TtlCache<readonly StayQuote[]>(options.ttlMs, options.maxEntries ?? 50_000, now);
   const properties = new TtlCache<Property[]>(options.ttlMs, 1_000, now);
+  // Identical upstream requests already on their way. Two users running the same
+  // search at the same moment share one call instead of both missing the cache.
+  // Trade-off: if the first caller aborts, the shared call fails for the second too.
+  const inFlight = new Map<string, Promise<StayQuote[]>>();
+
+  function fetchGroup(request: QuoteRequest, callOptions?: ProviderCallOptions) {
+    const key = [
+      request.propertyIds.join(","),
+      request.stays.map((stay) => `${stay.checkIn}>${stay.checkOut}`).join(","),
+      request.adults,
+      request.currency,
+    ].join("|");
+    const pending = inFlight.get(key);
+    if (pending) return pending;
+
+    const call = inner
+      .getQuotes(request, callOptions)
+      .then((answer) => {
+        const byKey = new Map<string, StayQuote[]>();
+        for (const quote of answer) {
+          const quoteCacheKey = quoteKey(request, quote.propertyId, quote);
+          byKey.set(quoteCacheKey, [...(byKey.get(quoteCacheKey) ?? []), quote]);
+        }
+        for (const stay of request.stays) {
+          for (const propertyId of request.propertyIds) {
+            const quoteCacheKey = quoteKey(request, propertyId, stay);
+            quotes.set(quoteCacheKey, byKey.get(quoteCacheKey) ?? []);
+          }
+        }
+        return answer;
+      })
+      .finally(() => inFlight.delete(key));
+    inFlight.set(key, call);
+    return call;
+  }
 
   return {
     info: inner.info,
@@ -62,21 +97,7 @@ export function withQuoteCache(inner: AccommodationProvider, options: QuoteCache
       }
 
       const fetched = await Promise.all(
-        [...groups.values()].map(async (group) => {
-          const answer = await inner.getQuotes({ ...request, ...group }, callOptions);
-          const byKey = new Map<string, StayQuote[]>();
-          for (const quote of answer) {
-            const key = quoteKey(request, quote.propertyId, quote);
-            byKey.set(key, [...(byKey.get(key) ?? []), quote]);
-          }
-          for (const stay of group.stays) {
-            for (const propertyId of group.propertyIds) {
-              const key = quoteKey(request, propertyId, stay);
-              quotes.set(key, byKey.get(key) ?? []);
-            }
-          }
-          return answer;
-        }),
+        [...groups.values()].map((group) => fetchGroup({ ...request, ...group }, callOptions)),
       );
 
       return [...result, ...fetched.flat()];

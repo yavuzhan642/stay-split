@@ -218,6 +218,24 @@ describe("withQuoteCache", () => {
     expect(second).toEqual(expect.arrayContaining(first));
   });
 
+  it("shares one upstream call between identical requests that arrive together", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { inner, calls } = counting(async (r) => {
+      await gate;
+      return quoteAll(r);
+    });
+    const provider = withQuoteCache(inner, { ttlMs: 60_000 });
+    const first = provider.getQuotes(request(["A", "B"], stays(2)));
+    const second = provider.getQuotes(request(["A", "B"], stays(2)));
+    release();
+
+    const [a, b] = await Promise.all([first, second]);
+    expect(calls).toHaveLength(1);
+    expect(a).toHaveLength(4);
+    expect(b).toEqual(a);
+  });
+
   it("remembers that a stay is not bookable", async () => {
     const { inner, calls } = counting(async () => []);
     const provider = withQuoteCache(inner, { ttlMs: 60_000 });

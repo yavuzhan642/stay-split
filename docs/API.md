@@ -70,6 +70,7 @@ Her yanıt ya `{ "data": … }` ya da `{ "error": … }` biçimindedir. İstemci
 | Durum | `error.code` | Anlamı | İstemci ne yapmalı |
 | --- | --- | --- | --- |
 | 400 | `INVALID_QUERY` | Parametreler geçersiz; `error.issues` alan bazlı mesajları içerir | Girdiyi düzelt |
+| 429 | `RATE_LIMITED` | İstemci dakikalık istek sınırını aştı (varsayılan 30, `API_RATE_LIMIT_PER_MINUTE`) | `Retry-After` saniye bekle |
 | 503 | `PROVIDER_UNAVAILABLE` | Sağlayıcı geçici olarak yanıt vermiyor (zaman aşımı, rate limit) | `Retry-After` saniye sonra tekrar dene |
 | 502 | `PROVIDER_ERROR` | Sağlayıcı isteği reddetti, tekrar denemek işe yaramaz | Tekrar deneme; logları incele |
 | 500 | `INTERNAL` | Beklenmeyen hata. Ayrıntılar yanıtta değil, sunucu loglarındadır | Tekrar deneme; logları incele |
